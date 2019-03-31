@@ -1,29 +1,38 @@
 import Discord from 'discord.js'
-import XLSX from 'xlsx'
 
 import path from 'path'
 
-const channelId = '345179574033842177'
+const channelId = '477915621649285120'
 
-export default class Bot {
-  constructor (botToken) {
+class Bot {
+  constructor (botToken, sheet) {
     this.main = this.main.bind(this)
 
     this.botToken = botToken
 
     this.client = new Discord.Client()
     this.client.on("ready", async () => {
-      this.client.user.setGame('live countdowns until payout')
+      this.client.user.setActivity('Live Payout Countdown')
       this.channel = this.client.channels.get(channelId)
 
       await this.initializeBot()
       console.log('Bot initialized')
     })
+    this.client.on("error", async e => {
+      console.log(e);
+    })
+    this.client.on("reconnecting", async () => {
+      console.log("Bot reconnecting");
+    })
+    this.client.on("disconnect", async e => {
+      console.log(e);
+      process.exit(1);
+    })
 
-    this.client.login(botToken)
+this.client.login(botToken)
 
-    this.sheet = XLSX.utils.sheet_to_json(XLSX.readFile(path.resolve(__dirname, '../SWGoH_Shard.xlsx')).Sheets.Sheet1)
-    this.parseXlsx()
+    this.sheet = sheet
+    this.parsejson()
 
     this.main()
   }
@@ -59,16 +68,14 @@ export default class Bot {
     }
   }
 
-  parseXlsx () {
+  parsejson () {
     this.mates = []
     for (let i in this.sheet) {
       const user = this.sheet[i]
       this.mates.push({
         name: user.Name,
-        payout: parseInt(user.UTC.substr(0,2)),
-        discordId: user.ID,
-        flag: user.Flag,
-        swgoh: user.SWGOH
+        swgoh: user.SWGOH,
+        payout: user.UTC.split(":").map(Number)
       })
     }
     const matesByTime = {}
@@ -90,7 +97,7 @@ export default class Bot {
     for (let i in this.mates) {
       const mate = this.mates[i]
       const p = new Date()
-      p.setUTCHours(mate.payout, 0, 0, 0)
+      p.setUTCHours(mate.payout[0], mate.payout[1])
       if (p < now) p.setDate(p.getDate() + 1)
       mate.timeUntilPayout = p.getTime() - now.getTime()
       let dif = new Date(mate.timeUntilPayout)
@@ -111,14 +118,19 @@ export default class Bot {
     let embed = new Discord.RichEmbed().setColor(0x00AE86)
     let desc = '**Time until next payout**:'
     for (let i in this.mates) {
-      let fieldName = String(this.mates[i].time)
-      let fieldText = ''
-      for (const mate of this.mates[i].mates) {
-        fieldText += `${mate.flag} [${mate.name}](${mate.swgoh})\n` // Discord automatically trims messages
+      let fieldName = `${this.mates[i].time}`
+      let fieldText = ""
+      for (let j in this.mates[i].mates) {
+        const mate = this.mates[i].mates[j]
+        // check to see if we've already added names
+        if (fieldText.length > 0) {fieldText += "\n";}
+        fieldText += `• [${mate.name}](${mate.swgoh})`
       }
-      embed.addField(fieldName, fieldText, true)
+      embed.addField(fieldName,fieldText,true)
     }
     embed.setDescription(desc)
     await this.message.edit({embed})
   }
 }
+
+export default Bot;

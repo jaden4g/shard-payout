@@ -12,7 +12,6 @@ class Bot {
 
     this.client = new Discord.Client()
     this.client.on("ready", async () => {
-      this.client.user.setActivity('Live Payout Countdown')
       this.channel = this.client.channels.get(channelId)
 
       await this.initializeBot()
